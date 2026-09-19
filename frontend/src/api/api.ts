@@ -16,7 +16,7 @@ api.interceptors.response.use(
     //sessao expirada ou invalida: o perfil em cache mentiria sobre estar
     //logado, entao ele sai e a interface volta para o login
     if (error?.response?.status === 401) {
-      localStorage.removeItem("authUser");
+      localStorage.removeItem("stubUser");
     }
     return Promise.reject(error);
   }

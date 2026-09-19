@@ -98,8 +98,10 @@ describe("UserController", () => {
       expect(result).toMatchObject({
         success: true,
         message: "User already exists.",
-        firstLogin: false,
       });
+      //o ramo de usuario existente nao devolve firstLogin; o cliente le
+      //!!undefined, que e false
+      expect(result.firstLogin).toBeUndefined();
       expect(controller.getStatus()).toBe(200);
       expect(mockedUserService.createUser).not.toHaveBeenCalled();
     });

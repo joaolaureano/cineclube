@@ -1,45 +1,44 @@
-import React, { createContext, useCallback, useEffect, useState } from "react";
+import React, { createContext, useEffect, useState } from "react";
 
 import UserService from "../services/user";
 
 /**
- * A sessao vive num cookie httpOnly emitido pelo backend: o JavaScript da
- * pagina nao a le nem a escreve, que e justamente a protecao contra XSS que o
- * localStorage nao dava. Aqui so guardamos o perfil exibido na interface.
+ * A sessao e um cookie httpOnly emitido pelo backend: o JavaScript da pagina
+ * nao a le nem a escreve, que e a protecao contra XSS que o localStorage nao
+ * dava. Aqui so fica o perfil que a interface exibe.
  *
- * A forma do AuthUser imita a do firebase.User nos campos que as telas usam
+ * A forma do StubUser imita a do firebase.User nos campos que as telas usam
  * (displayName, email, photoURL) para que nenhuma pagina precise mudar.
  */
-export interface AuthUser {
+export interface StubUser {
   uid: string;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
 }
 
-const PROFILE_KEY = "authUser";
+const STUB_USER_KEY = "stubUser";
 
-const readStoredProfile = (): AuthUser | null => {
-  const raw = localStorage.getItem(PROFILE_KEY);
+const readStoredUser = (): StubUser | null => {
+  const raw = localStorage.getItem(STUB_USER_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthUser;
+    return JSON.parse(raw) as StubUser;
   } catch {
     return null;
   }
 };
 
 interface AuthContextData {
-  //devolve firstLogin em vez de so um booleano de sucesso: quem chama precisa
-  //rotear na hora, e ler isFirstLogin do estado logo apos o setState traria o
-  //valor antigo
-  loginWithGoogle: (
+  //devolve o firstLogin junto: ler isFirstLogin do estado logo apos o setState
+  //traria o valor anterior, e a tela precisa rotear na hora
+  login: (
     credential: string
-  ) => Promise<{ ok: boolean; firstLogin: boolean }>;
-  logout: () => Promise<boolean>;
+  ) => Promise<{ ok: boolean; firstLogin: boolean } | undefined>;
+  logout: () => Promise<boolean | undefined>;
   setIsLoggingIn: (value: boolean) => void;
   setIsFirstLogin: (value: boolean) => void;
-  authUser: AuthUser | null;
+  authUser: StubUser | null;
   hasSession: boolean;
   isLoadingUser: boolean;
   isLoggingIn: boolean;
@@ -55,58 +54,59 @@ interface AuthContextProviderProps {
 export const AuthContextProvider = ({
   children,
 }: AuthContextProviderProps): JSX.Element => {
-  const [authUser, setAuthUser] = useState<AuthUser | null>(readStoredProfile);
-  const [isLoadingUser, setIsLoadingUser] = useState(false);
+  const [authUser, setAuthUser] = useState<StubUser | null>(readStoredUser);
+  const [hasSession, setHasSession] = useState(!!readStoredUser());
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
-  //o perfil em cache diz que houve login, mas so o backend sabe se o cookie
-  //ainda vale; hasSession e otimista e o 401 do interceptor corrige
-  const hasSession = authUser !== null;
-
   useEffect(() => {
-    if (authUser) localStorage.setItem(PROFILE_KEY, JSON.stringify(authUser));
-    else localStorage.removeItem(PROFILE_KEY);
-  }, [authUser]);
+    setIsLoadingUser(hasSession && authUser === null);
+  }, [hasSession, authUser]);
 
-  const loginWithGoogle = useCallback(async (credential: string) => {
-    setIsLoadingUser(true);
-    try {
-      const response = await UserService.auth(credential);
-      const body = response.data;
-      const user = body?.body?.user;
-      if (!user) return { ok: false, firstLogin: false };
+  const storeUser = (user: StubUser) => {
+    localStorage.setItem(STUB_USER_KEY, JSON.stringify(user));
+    setAuthUser(user);
+    setHasSession(true);
+  };
 
-      const firstLogin = !!body.firstLogin;
-      setIsFirstLogin(firstLogin);
-      setAuthUser({
-        uid: user.id,
-        displayName: user.name ?? null,
-        email: null,
-        photoURL: user.photo_path || null,
-      });
-      return { ok: true, firstLogin };
-    } finally {
-      setIsLoadingUser(false);
-    }
-  }, []);
+  const clearUser = () => {
+    localStorage.removeItem(STUB_USER_KEY);
+    setAuthUser(null);
+    setHasSession(false);
+  };
 
-  const logout = useCallback(async () => {
+  const login = async (credential: string) => {
+    const { data } = await UserService.auth(credential);
+    if (!data?.id) return { ok: false, firstLogin: false };
+
+    const firstLogin = !!data.first_login;
+    setIsFirstLogin(firstLogin);
+    storeUser({
+      uid: data.id,
+      displayName: data.name ?? null,
+      email: data.email ?? null,
+      photoURL: data.photo_path || null,
+    });
+
+    return { ok: true, firstLogin };
+  };
+
+  const logout = async () => {
     try {
       //o cookie e httpOnly: so o servidor consegue expira-lo
       await UserService.logout();
     } catch {
       //mesmo que a chamada falhe, o estado local tem que sair
     }
-    localStorage.removeItem(PROFILE_KEY);
-    setAuthUser(null);
+    clearUser();
     return true;
-  }, []);
+  };
 
   return (
     <AuthContext.Provider
       value={{
-        loginWithGoogle,
+        login,
         logout,
         setIsLoggingIn,
         setIsFirstLogin,

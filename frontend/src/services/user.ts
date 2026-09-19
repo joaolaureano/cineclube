@@ -10,12 +10,16 @@ interface PutMoviePayload {
 }
 
 const user = {
-  /**
-   * Troca o id_token do Google por uma sessao. A resposta traz o cookie
-   * httpOnly no Set-Cookie; aqui so interessa o perfil que volta no corpo.
-   */
-  auth: (credential: string): Promise<AxiosResponse<AuthResponse>> => {
-    return api.post("/user/auth", { credential });
+  //troca o id_token do Google por uma sessao; o cookie vem no Set-Cookie e o
+  //corpo traz o perfil
+  auth: (credential: string): Promise<AxiosResponse<User>> => {
+    //transformResponse e config, nao corpo: passa-lo como segundo argumento
+    //enviava o parser como payload e nunca o aplicava na resposta
+    return api.post(
+      "/user/auth",
+      { credential },
+      { transformResponse: parseUser }
+    );
   },
 
   logout: (): Promise<AxiosResponse<{ success: boolean }>> => {
@@ -55,13 +59,20 @@ const parseMovieCardInfo = (data: string): UserMovie[] => {
   return movies;
 };
 
-export interface AuthResponse {
-  success: boolean;
-  message: string;
-  //o backend responde firstLogin; ler first_login aqui era o motivo de a tela
-  //de preferencias nunca aparecer no primeiro acesso
-  firstLogin?: boolean;
-  body?: { user: User };
-}
+const parseUser = (data: string): User => {
+  const response = JSON.parse(data);
+  if (!response.success) {
+    throw new Error("Erro");
+  }
+
+  const user: User = {
+    ...response.body?.user,
+    //o backend responde firstLogin; ler first_login era o motivo de a tela de
+    //preferencias nunca aparecer no primeiro acesso
+    first_login: response.firstLogin,
+  };
+
+  return user;
+};
 
 export default user;

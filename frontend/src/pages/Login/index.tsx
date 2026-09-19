@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { Redirect, useHistory } from "react-router-dom";
 import { Typography, Container } from "@material-ui/core";
 import { SharedSnackbarContext } from "../../components/SnackBar/SnackContext";
@@ -21,35 +15,41 @@ const Login = (): JSX.Element => {
   const buttonRef = useRef<HTMLDivElement>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
 
-  const handleCredential = useCallback(
-    async (credential: string) => {
-      auth.setIsLoggingIn(true);
-      try {
-        const { ok, firstLogin } = await auth.loginWithGoogle(credential);
-        if (!ok) throw new Error("Falha no login");
+  //o credential chega do Google, nao de um clique nosso: e por isso que o
+  //handler virou callback do botao em vez de onClick
+  const handleLogin = async (credential: string) => {
+    auth.setIsLoggingIn(true);
 
+    try {
+      const result = await auth.login(credential);
+
+      if (result?.ok) {
         openSnackbar("Login bem-sucedido", "success");
         auth.setIsLoggingIn(false);
-        //firstLogin vem do retorno, e nao do estado: setState nao teria
-        //aplicado ainda neste ponto
-        return history.push(firstLogin ? "/signupPreferences" : "/home");
-      } catch (err) {
-        auth.setIsLoggingIn(false);
-        openSnackbar("Login não foi realizado com sucesso", "error");
+        //firstLogin vem do retorno: o estado so aplica no proximo render
+        if (result.firstLogin) {
+          return history.push("/signupPreferences");
+        }
+        return history.push("/home");
       }
-    },
-    [auth, history, openSnackbar]
-  );
+
+      throw new Error("Falha no login");
+    } catch (err) {
+      auth.setIsLoggingIn(false);
+      openSnackbar("Login não foi realizado com sucesso", "error");
+    }
+  };
 
   useEffect(() => {
     if (!buttonRef.current) return;
 
-    //o botao e renderizado pelo proprio Google: é ele quem abre o seletor de
-    //conta e devolve o id_token, entao nao ha como imitá-lo com um div nosso
-    renderGoogleButton(buttonRef.current, handleCredential).catch((err) => {
+    //quem desenha o botao e o Google: e ele que abre o seletor de conta e
+    //devolve o id_token assinado, entao nao da para imitá-lo com um div nosso
+    renderGoogleButton(buttonRef.current, handleLogin).catch((err) => {
       setUnavailable((err as Error).message);
     });
-  }, [handleCredential]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>

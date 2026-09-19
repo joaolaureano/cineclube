@@ -53,30 +53,42 @@ export class UserController extends Controller {
 
     try {
       const existingUser = await UserService.findUserById(user.id);
-      const firstLogin = !existingUser;
 
-      const storedUser = existingUser ?? (await UserService.createUser(user));
-      if (!storedUser) throw new Error("Could not persist user");
-
-      const session = await AuthService.issueSession(user);
-      setSessionCookie(request, session);
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: firstLogin
-          ? "New user successfully created."
-          : "User already exists.",
-        body: {
-          user: {
-            id: storedUser.id,
-            name: storedUser.name,
-            photo_path: storedUser.photo_path,
-            randomness: storedUser.randomness,
+      if (existingUser) {
+        setSessionCookie(request, await AuthService.issueSession(user));
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "User already exists.",
+          body: {
+            user: {
+              ...user,
+              randomness: existingUser.randomness,
+            },
           },
-        },
-        firstLogin,
-      };
+        };
+      }
+
+      const createdUser = await UserService.createUser(user);
+      if (createdUser) {
+        setSessionCookie(request, await AuthService.issueSession(user));
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "New user successfully created.",
+          body: {
+            user: {
+              photo_path: createdUser.photo_path,
+              id: createdUser.id,
+              name: createdUser.name,
+              randomness: createdUser.randomness,
+            },
+          },
+          firstLogin: true,
+        };
+      }
+
+      throw new Error();
     } catch (err) {
       this.setStatus(500);
       const error = err as Error;
