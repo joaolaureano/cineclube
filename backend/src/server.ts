@@ -7,7 +7,9 @@ import swaggerConfig from "./config/swaggerConfig";
 import { RegisterRoutes } from "./routes/routes";
 import { errorhandler } from "./utils/errorHandler";
 
-const init = (): void => {
+// Montar o app e escutar numa porta sao coisas separadas: em Lambda nao existe
+// porta para escutar, e o mesmo app precisa ser embrulhado pelo handler.
+const createApp = (): express.Express => {
   const server = express();
 
   server.use(json());
@@ -28,6 +30,12 @@ const init = (): void => {
     res.redirect("/doc");
   });
 
+  return server;
+};
+
+const init = (): void => {
+  const server = createApp();
+
   const PORT = variables.PORT || 5000;
 
   server.listen(PORT, () => {
@@ -36,5 +44,6 @@ const init = (): void => {
 };
 
 export default {
+  createApp,
   init,
 };

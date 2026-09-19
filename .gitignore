@@ -4,6 +4,10 @@ dist/
 build/
 coverage/
 
+# pacote da Lambda: gerado por backend/build-lambda.sh a cada deploy, ~32 MB
+dist-lambda/
+dist-lambda.zip
+
 # ambiente
 .env
 .env.local
