@@ -13,19 +13,6 @@ dist-lambda.zip
 .env.local
 *.local
 
-# infraestrutura: o  e mantido fora do repositorio de proposito.
-# . guarda segredos em texto plano (a connection string) e os JSONs
-# de policy descrevem a superficie IAM da conta. Nada disso entra num repo
-# publico.
-/
-backend//
-*.
-*..*
-*.
-!*..example
-./
-..lock.hcl
-
 # ferramentas locais
 graphify-out/
 .serena/
