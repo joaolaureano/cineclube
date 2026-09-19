@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { AppBar, Divider, Container, IconButton } from "@material-ui/core";
+import { AppBar, Divider, IconButton } from "@material-ui/core";
 
 import Chip from "@material-ui/core/Chip";
 import Typography from "@material-ui/core/Typography";
@@ -40,7 +40,7 @@ export const HomeDisplay: React.FC<HomeDisplayProps> = (props) => {
   }, [movie]);
   const renderMovie = () => {
     return (
-      <Container className={classes.content}>
+      <div className={`${classes.page} ${classes.content}`}>
         <img
           src={movie.path_banner}
           alt="movie cover"
@@ -158,7 +158,7 @@ export const HomeDisplay: React.FC<HomeDisplayProps> = (props) => {
             })}
           </div>
         </div>
-      </Container>
+      </div>
     );
   };
 
@@ -170,7 +170,7 @@ export const HomeDisplay: React.FC<HomeDisplayProps> = (props) => {
         onClose={closeAchievement}
       />
       <Tutorial />
-      <Container className={classes.container}>
+      <div className={classes.container}>
         {/* Botão Menu */}
         <div className={classes.topMenu}>
           <img src={logoImg} alt="Cinehal logo" className={classes.logo} />
@@ -195,74 +195,78 @@ export const HomeDisplay: React.FC<HomeDisplayProps> = (props) => {
 
         {/* Botoes do Tinder */}
         <AppBar position="fixed" color="transparent" className={classes.appBar}>
-          <div className={classes.bottomMenu}>
-            <IconButton
-              onClick={logic.functions.handleClickUndoLastAction}
-              aria-label="undo"
-              color="primary"
-            >
-              <CustomIcon type="undo" />
-            </IconButton>
-            <Divider
-              className={classes.menuDivider}
-              orientation="vertical"
-              flexItem
-            />
-            <IconButton
-              onClick={
-                movie ? logic.functions.handleClickDontWantToWatch : () => {}
-              }
-              aria-label="dislike"
-              color="primary"
-            >
-              <CustomIcon type="dontWantToWatch" />
-            </IconButton>
-            <Divider
-              className={classes.menuDivider}
-              orientation="vertical"
-              flexItem
-            />
-            <IconButton
-              onClick={movie ? logic.functions.handleClickWantoWatch : () => {}}
-              aria-label="like"
-              color="primary"
-            >
-              <CustomIcon type="wantToWatch" />
-            </IconButton>
-            <Divider
-              className={classes.menuDivider}
-              orientation="vertical"
-              flexItem
-            />
-            <IconButton
-              onClick={movie ? logic.functions.handleClickWatched : () => {}}
-              aria-label="star"
-              color="primary"
-            >
-              <CustomIcon type="watched" />
-            </IconButton>
-            <LikeModal
-              open={modalLiked}
-              like={logic.functions.handleClickLikedMovie}
-              dislike={logic.functions.handleClickDislikedMovie}
-              onClose={logic.functions.handleCloseModal}
-              aria-labelledby="simple-modal-title"
-              aria-describedby="simple-modal-description"
-            />
-            {props.modalRecommendedMovie && (
-              <MessageModal
-                movie={{
-                  platform: props.recommendedMovie!.platform,
-                  size_list: props.recommendedMovie!.size_list,
-                  title: props.recommendedMovie!.title,
-                }}
-                open={props.modalRecommendedMovie}
-                onClose={logic.functions.handleCloseModalRecommend}
+          <div className={classes.page}>
+            <div className={classes.bottomMenu}>
+              <IconButton
+                onClick={logic.functions.handleClickUndoLastAction}
+                aria-label="undo"
+                color="primary"
+              >
+                <CustomIcon type="undo" />
+              </IconButton>
+              <Divider
+                className={classes.menuDivider}
+                orientation="vertical"
+                flexItem
               />
-            )}
+              <IconButton
+                onClick={
+                  movie ? logic.functions.handleClickDontWantToWatch : () => {}
+                }
+                aria-label="dislike"
+                color="primary"
+              >
+                <CustomIcon type="dontWantToWatch" />
+              </IconButton>
+              <Divider
+                className={classes.menuDivider}
+                orientation="vertical"
+                flexItem
+              />
+              <IconButton
+                onClick={
+                  movie ? logic.functions.handleClickWantoWatch : () => {}
+                }
+                aria-label="like"
+                color="primary"
+              >
+                <CustomIcon type="wantToWatch" />
+              </IconButton>
+              <Divider
+                className={classes.menuDivider}
+                orientation="vertical"
+                flexItem
+              />
+              <IconButton
+                onClick={movie ? logic.functions.handleClickWatched : () => {}}
+                aria-label="star"
+                color="primary"
+              >
+                <CustomIcon type="watched" />
+              </IconButton>
+              <LikeModal
+                open={modalLiked}
+                like={logic.functions.handleClickLikedMovie}
+                dislike={logic.functions.handleClickDislikedMovie}
+                onClose={logic.functions.handleCloseModal}
+                aria-labelledby="simple-modal-title"
+                aria-describedby="simple-modal-description"
+              />
+              {props.modalRecommendedMovie && (
+                <MessageModal
+                  movie={{
+                    platform: props.recommendedMovie!.platform,
+                    size_list: props.recommendedMovie!.size_list,
+                    title: props.recommendedMovie!.title,
+                  }}
+                  open={props.modalRecommendedMovie}
+                  onClose={logic.functions.handleCloseModalRecommend}
+                />
+              )}
+            </div>
           </div>
         </AppBar>
-      </Container>
+      </div>
     </div>
   );
 };

@@ -11,6 +11,25 @@ const useStyles = makeStyles((theme) => {
       background: theme.palette.background.default,
     },
 
+    //Largura do app, declarada uma vez. O conteudo e a barra de acoes usam esta
+    //mesma classe, entao acompanham uma a outra por construcao - antes o
+    //conteudo passava por dois Container do MUI aninhados e a barra por nenhum,
+    //e a diferenca de recuo aparecia como larguras distintas no desktop.
+    page: {
+      width: "100%",
+      maxWidth: "700px",
+      margin: "0 auto",
+      //o mesmo recuo que os dois Container somavam: spacing(3) cada, spacing(2)
+      //no celular
+      paddingLeft: theme.spacing(6),
+      paddingRight: theme.spacing(6),
+
+      [theme.breakpoints.down("xs")]: {
+        paddingLeft: theme.spacing(4),
+        paddingRight: theme.spacing(4),
+      },
+    },
+
     container: {
       display: "flex",
       flexDirection: "column",
@@ -154,13 +173,13 @@ const useStyles = makeStyles((theme) => {
       zIndex: 5,
     },
 
+    //a largura vem de page; aqui fica so a aparencia da barra
     bottomMenu: {
       display: "flex",
       justifyContent: "space-around",
       alignItems: "center",
-      maxWidth: "700px",
-      //centraliza sobre a faixa do AppBar, que segue atravessando a tela
-      margin: "0 auto 0.5rem",
+      width: "100%",
+      marginBottom: "0.5rem",
       background: theme.palette.background.default,
       borderRadius: "0 0 2rem 2rem",
     },
