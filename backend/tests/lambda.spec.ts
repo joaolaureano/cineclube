@@ -24,6 +24,7 @@ jest.mock("@aws-sdk/client-ssm", () => ({
 const ssmReply = (dbUrl: string, originSecret?: string) => ({
   Parameters: [
     { Name: "/cineclube/DB_URL", Value: dbUrl },
+    { Name: "/cineclube/SESSION_SECRET", Value: "segredo-de-sessao-de-teste" },
     ...(originSecret
       ? [{ Name: "/cineclube/ORIGIN_SECRET", Value: originSecret }]
       : []),
@@ -121,7 +122,18 @@ describe("lambda handler", () => {
     send.mockResolvedValue({ Parameters: [] });
     const handler = loadHandler();
 
-    await expect(handler({}, {})).rejects.toThrow(/vazio ou ilegivel/);
+    await expect(handler({}, {})).rejects.toThrow(/DB_URL vazio ou ilegivel/);
+  });
+
+  // Sem segredo de sessao nao ha como assinar nem verificar login: falhar no
+  // boot e melhor que descobrir com o usuario na frente.
+  it("fails loudly when the session secret is missing", async () => {
+    send.mockResolvedValue({
+      Parameters: [{ Name: "/cineclube/DB_URL", Value: "postgresql://u:p@h/db" }],
+    });
+    const handler = loadHandler();
+
+    await expect(handler({}, {})).rejects.toThrow(/SESSION_SECRET/);
   });
 
   it("connects on the first invocation and delegates to the wrapped app", async () => {

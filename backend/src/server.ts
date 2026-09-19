@@ -1,6 +1,7 @@
 import express from "express";
 import { json } from "body-parser";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 import variables from "./config/enviromentVariables";
 import swaggerConfig from "./config/swaggerConfig";
@@ -13,7 +14,11 @@ const createApp = (): express.Express => {
   const server = express();
 
   server.use(json());
-  server.use(cors());
+  //a sessao chega por cookie; sem o parser o middleware de autenticacao nao a enxerga
+  server.use(cookieParser());
+  //same-origin no CloudFront: credentials liga o envio do cookie no XHR, e a
+  //origem refletida em vez de "*" porque "*" e incompativel com credentials
+  server.use(cors({ origin: true, credentials: true }));
 
   // Init routes
   RegisterRoutes(server); // New router version

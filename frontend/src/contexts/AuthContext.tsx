@@ -1,65 +1,45 @@
-import React, { createContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useEffect, useState } from "react";
+
+import UserService from "../services/user";
 
 /**
- * AUTENTICACAO PROVISORIA.
+ * A sessao vive num cookie httpOnly emitido pelo backend: o JavaScript da
+ * pagina nao a le nem a escreve, que e justamente a protecao contra XSS que o
+ * localStorage nao dava. Aqui so guardamos o perfil exibido na interface.
  *
- * O Firebase foi removido e ainda nao ha provedor de identidade no lugar. O
- * token e apenas um payload JSON em base64url, sem assinatura: o backend le os
- * campos e confia neles. Qualquer um forja qualquer identidade.
- *
- * A forma do StubUser imita a do firebase.User nos campos que as telas usam
- * (displayName, email, photoURL) para que nenhuma pagina precise mudar agora,
- * nem de novo quando um provedor de verdade entrar.
+ * A forma do AuthUser imita a do firebase.User nos campos que as telas usam
+ * (displayName, email, photoURL) para que nenhuma pagina precise mudar.
  */
-export interface StubUser {
+export interface AuthUser {
   uid: string;
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
 }
 
-const STUB_USER_KEY = "stubUser";
+const PROFILE_KEY = "authUser";
 
-const toBase64Url = (value: string) =>
-  btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-const buildToken = (user: StubUser) =>
-  toBase64Url(
-    JSON.stringify({
-      id: user.uid,
-      name: user.displayName ?? user.uid,
-      email: user.email ?? undefined,
-      photo_path: user.photoURL ?? "",
-    })
-  );
-
-const readStoredUser = (): StubUser | null => {
-  const raw = localStorage.getItem(STUB_USER_KEY);
+const readStoredProfile = (): AuthUser | null => {
+  const raw = localStorage.getItem(PROFILE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as StubUser;
+    return JSON.parse(raw) as AuthUser;
   } catch {
     return null;
   }
 };
 
-const createStubUser = (): StubUser => {
-  const uid = `convidado-${Math.random().toString(36).slice(2, 10)}`;
-  return {
-    uid,
-    displayName: "Convidado",
-    email: `${uid}@example.invalid`,
-    photoURL: "",
-  };
-};
-
 interface AuthContextData {
-  login: () => Promise<string | undefined>;
-  logout: () => Promise<boolean | undefined>;
-  getToken: () => Promise<string | undefined>;
+  //devolve firstLogin em vez de so um booleano de sucesso: quem chama precisa
+  //rotear na hora, e ler isFirstLogin do estado logo apos o setState traria o
+  //valor antigo
+  loginWithGoogle: (
+    credential: string
+  ) => Promise<{ ok: boolean; firstLogin: boolean }>;
+  logout: () => Promise<boolean>;
   setIsLoggingIn: (value: boolean) => void;
   setIsFirstLogin: (value: boolean) => void;
-  authUser: StubUser | null;
+  authUser: AuthUser | null;
   hasSession: boolean;
   isLoadingUser: boolean;
   isLoggingIn: boolean;
@@ -75,60 +55,59 @@ interface AuthContextProviderProps {
 export const AuthContextProvider = ({
   children,
 }: AuthContextProviderProps): JSX.Element => {
-  const [authUser, setAuthUser] = useState<StubUser | null>(readStoredUser);
-  const [hasSession, setHasSession] = useState(!!localStorage.getItem("token"));
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(readStoredProfile);
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isFirstLogin, setIsFirstLogin] = useState(false);
 
+  //o perfil em cache diz que houve login, mas so o backend sabe se o cookie
+  //ainda vale; hasSession e otimista e o 401 do interceptor corrige
+  const hasSession = authUser !== null;
+
   useEffect(() => {
-    setIsLoadingUser(hasSession && authUser === null);
-  }, [hasSession, authUser]);
+    if (authUser) localStorage.setItem(PROFILE_KEY, JSON.stringify(authUser));
+    else localStorage.removeItem(PROFILE_KEY);
+  }, [authUser]);
 
-  const setToken = (token?: string) => {
-    if (token) {
-      localStorage.setItem("token", token);
-      setHasSession(true);
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    setIsLoadingUser(true);
+    try {
+      const response = await UserService.auth(credential);
+      const body = response.data;
+      const user = body?.body?.user;
+      if (!user) return { ok: false, firstLogin: false };
+
+      const firstLogin = !!body.firstLogin;
+      setIsFirstLogin(firstLogin);
+      setAuthUser({
+        uid: user.id,
+        displayName: user.name ?? null,
+        email: null,
+        photoURL: user.photo_path || null,
+      });
+      return { ok: true, firstLogin };
+    } finally {
+      setIsLoadingUser(false);
     }
-  };
+  }, []);
 
-  const removeToken = () => {
-    localStorage.removeItem("token");
-    setHasSession(false);
-  };
-
-  const login = async () => {
-    //a identidade e reaproveitada entre sessoes, senao cada login criaria um
-    //usuario novo no banco
-    const user = readStoredUser() ?? createStubUser();
-    localStorage.setItem(STUB_USER_KEY, JSON.stringify(user));
-    setAuthUser(user);
-
-    const token = buildToken(user);
-    setToken(token);
-    return token;
-  };
-
-  const logout = async () => {
-    removeToken();
-    localStorage.clear();
+  const logout = useCallback(async () => {
+    try {
+      //o cookie e httpOnly: so o servidor consegue expira-lo
+      await UserService.logout();
+    } catch {
+      //mesmo que a chamada falhe, o estado local tem que sair
+    }
+    localStorage.removeItem(PROFILE_KEY);
     setAuthUser(null);
     return true;
-  };
-
-  const getToken = async () => {
-    if (!authUser) return undefined;
-    const token = buildToken(authUser);
-    setToken(token);
-    return token;
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        login,
+        loginWithGoogle,
         logout,
-        getToken,
         setIsLoggingIn,
         setIsFirstLogin,
         authUser,

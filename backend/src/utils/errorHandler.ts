@@ -1,6 +1,8 @@
 import { Response, Request, NextFunction } from "express";
 import { ValidateError } from "tsoa";
 
+import { UnauthorizedError } from "../services/AuthService";
+
 //o quarto parâmetro é o que faz o express reconhecer isto como error handler,
 //mesmo sem ser usado
 export function errorhandler(
@@ -11,6 +13,16 @@ export function errorhandler(
 ): Response | void {
   if (err instanceof ValidateError) {
     return res.status(err.status).json({ ...err, success: false });
+  }
+
+  //sessao ausente, invalida ou expirada e 401: o cliente precisa distinguir
+  //isso de indisponibilidade para saber que deve mandar o usuario logar
+  if (err instanceof UnauthorizedError) {
+    return res.status(401).json({
+      message: "Unauthorized",
+      errorMessage: err.message,
+      success: false,
+    });
   }
 
   if (err instanceof Error) {

@@ -1,98 +1,96 @@
+import express from "express";
+
 import { expressAuthentication } from "../../src/middlewares/authentication";
-import { UserService } from "../../src/services";
-import AuthService from "../../src/services/AuthService";
+import { SESSION_COOKIE } from "../../src/services/AuthService";
 
-jest.mock("../../src/services");
-jest.mock("../../src/services/AuthService");
+const mockedUserService = { findUserById: jest.fn() };
+const mockedAuthService = { verifySession: jest.fn() };
 
-const mockedUserService = UserService as jest.Mocked<typeof UserService>;
-const mockedAuthService = AuthService as jest.Mocked<typeof AuthService>;
+jest.mock("../../src/services", () => ({
+  UserService: { findUserById: (...a: unknown[]) => mockedUserService.findUserById(...a) },
+}));
+jest.mock("../../src/services/AuthService", () => ({
+  __esModule: true,
+  SESSION_COOKIE: "cineclube_session",
+  //a classe e real de proposito: o errorhandler decide o 401 por instanceof,
+  //e um dublê quebraria essa checagem sem o teste perceber
+  UnauthorizedError: jest.requireActual("../../src/services/AuthService")
+    .UnauthorizedError,
+  default: { verifySession: (...a: unknown[]) => mockedAuthService.verifySession(...a) },
+}));
 
-const requestWith = (authorization?: string) =>
-  (({
-    headers: authorization ? { authorization } : {},
-  } as unknown) as import("express").Request);
+const requestWith = (
+  cookies: Record<string, string> = {},
+  headers: Record<string, string> = {}
+) => (({ cookies, headers } as unknown) as express.Request);
 
-const tokenUser = {
-  id: "user-1",
-  name: "Ada",
-  email: "ada@example.com",
-  photo_path: "photo.png",
+const sessionUser = {
+  id: "google:1234567890",
+  name: "Fulano",
+  email: "fulano@example.com",
+  photo_path: "",
 };
 
 describe("expressAuthentication", () => {
   beforeEach(() => {
-    mockedAuthService.authenticateUser.mockResolvedValue(tokenUser);
+    jest.clearAllMocks();
+    mockedAuthService.verifySession.mockResolvedValue(sessionUser);
+    mockedUserService.findUserById.mockResolvedValue({ id: sessionUser.id });
   });
 
-  describe('securityName "bearer"', () => {
-    it("resolves the token user when they also exist in the database", async () => {
-      mockedUserService.findUserById.mockResolvedValue({
-        id: "user-1",
-      } as never);
+  it("authenticates from the session cookie", async () => {
+    const request = requestWith({ [SESSION_COOKIE]: "token-assinado" });
 
-      await expect(
-        expressAuthentication(requestWith("token"), "bearer")
-      ).resolves.toEqual(tokenUser);
-      expect(mockedUserService.findUserById).toHaveBeenCalledWith("user-1");
-    });
-
-    it("rejects a valid token whose user was never registered", async () => {
-      mockedUserService.findUserById.mockResolvedValue(undefined as never);
-
-      await expect(
-        expressAuthentication(requestWith("token"), "bearer")
-      ).rejects.toThrow("User does not exist in database.");
-    });
-
-    it("rejects when no authorization header is present", async () => {
-      await expect(
-        expressAuthentication(requestWith(), "bearer")
-      ).rejects.toThrow("No token provided");
-      expect(mockedAuthService.authenticateUser).not.toHaveBeenCalled();
-    });
-
-    it("strips the Bearer prefix before verifying the token", async () => {
-      mockedUserService.findUserById.mockResolvedValue({
-        id: "user-1",
-      } as never);
-
-      await expect(
-        expressAuthentication(requestWith("Bearer abc123"), "bearer")
-      ).resolves.toEqual(tokenUser);
-      expect(mockedAuthService.authenticateUser).toHaveBeenCalledWith("abc123");
-    });
-
-    it("passes a bare token through unchanged", async () => {
-      mockedUserService.findUserById.mockResolvedValue({
-        id: "user-1",
-      } as never);
-
-      await expressAuthentication(requestWith("abc123"), "bearer");
-
-      expect(mockedAuthService.authenticateUser).toHaveBeenCalledWith("abc123");
-    });
+    await expect(expressAuthentication(request, "bearer")).resolves.toEqual(
+      sessionUser
+    );
+    expect(mockedAuthService.verifySession).toHaveBeenCalledWith(
+      "token-assinado"
+    );
   });
 
-  describe('securityName "bearerLogin"', () => {
-    it("resolves the token user without checking the database", async () => {
-      await expect(
-        expressAuthentication(requestWith("token"), "bearerLogin")
-      ).resolves.toEqual(tokenUser);
-      expect(mockedUserService.findUserById).not.toHaveBeenCalled();
-    });
+  // O header continua servindo para uso programatico, mas agora tem que
+  // carregar uma sessao que nos assinamos.
+  it("accepts a bearer header for programmatic access", async () => {
+    const request = requestWith({}, { authorization: "Bearer token-assinado" });
 
-    it("rejects when no authorization header is present", async () => {
-      await expect(
-        expressAuthentication(requestWith(), "bearerLogin")
-      ).rejects.toThrow("No token provided");
-    });
+    await expect(expressAuthentication(request, "bearer")).resolves.toEqual(
+      sessionUser
+    );
+    expect(mockedAuthService.verifySession).toHaveBeenCalledWith(
+      "token-assinado"
+    );
   });
 
-  it("rejects an unrecognised securityName instead of resolving undefined", async () => {
-    // Resolving undefined here would read to tsoa as "authenticated, no user data".
+  it("rejects a request without any session", async () => {
+    await expect(expressAuthentication(requestWith(), "bearer")).rejects.toThrow(
+      "No session"
+    );
+    expect(mockedAuthService.verifySession).not.toHaveBeenCalled();
+  });
+
+  // Assinatura invalida e sessao expirada dao a mesma resposta: distinguir so
+  // ajudaria quem esta sondando.
+  it("rejects a session that does not verify", async () => {
+    mockedAuthService.verifySession.mockRejectedValue(new Error("bad"));
+
     await expect(
-      expressAuthentication(requestWith("token"), "somethingElse")
-    ).rejects.toThrow("Unknown security definition: somethingElse");
+      expressAuthentication(requestWith({ [SESSION_COOKIE]: "forjado" }), "bearer")
+    ).rejects.toThrow("Invalid session");
+  });
+
+  it("rejects a valid session whose user no longer exists", async () => {
+    mockedUserService.findUserById.mockResolvedValue(undefined);
+
+    await expect(
+      expressAuthentication(requestWith({ [SESSION_COOKIE]: "ok" }), "bearer")
+    ).rejects.toThrow("User does not exist in database.");
+  });
+
+  // Resolver undefined faria o tsoa tratar a requisicao como autenticada.
+  it("rejects an unknown security definition", async () => {
+    await expect(
+      expressAuthentication(requestWith(), "bearerLogin")
+    ).rejects.toThrow(/Unknown security definition/);
   });
 });

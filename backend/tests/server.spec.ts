@@ -1,6 +1,7 @@
 import express from "express";
 import { json } from "body-parser";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import swaggerConfig from "../src/config/swaggerConfig";
 import { RegisterRoutes } from "../src/routes/routes";
 import { errorhandler } from "../src/utils/errorHandler";
@@ -14,6 +15,10 @@ jest.mock("express", () => {
   return { __esModule: true, default: jest.fn(() => app) };
 });
 jest.mock("body-parser", () => ({ json: jest.fn(() => "json-middleware") }));
+jest.mock("cookie-parser", () => ({
+  __esModule: true,
+  default: jest.fn(() => "cookie-middleware"),
+}));
 jest.mock("cors", () => ({
   __esModule: true,
   default: jest.fn(() => "cors-middleware"),
@@ -46,14 +51,20 @@ describe("server.init", () => {
     process.env.PORT = originalPort;
   });
 
-  it("wires body-parser, cors, the tsoa routes, swagger and the error handler in order", () => {
+  it("wires body-parser, the cookie parser, cors, the tsoa routes, swagger and the error handler in order", () => {
     loadServer("5000").init();
     const app = appOf();
 
     expect(app.use).toHaveBeenNthCalledWith(1, json());
-    expect(app.use).toHaveBeenNthCalledWith(2, cors());
+    // O cookie parser vem antes das rotas de proposito: a sessao chega por
+    // cookie, e o middleware de autenticacao roda dentro de RegisterRoutes.
+    expect(app.use).toHaveBeenNthCalledWith(2, cookieParser());
+    expect(app.use).toHaveBeenNthCalledWith(3, cors());
     expect(RegisterRoutes).toHaveBeenCalledWith(app);
     expect(app.use).toHaveBeenCalledWith(swaggerConfig);
+    // credentials liga o envio do cookie no XHR; "*" e incompativel com ele,
+    // por isso a origem e refletida.
+    expect(cors).toHaveBeenCalledWith({ origin: true, credentials: true });
     // The error handler must come last, or thrown errors bypass it. isolateModules
     // gives src/server its own copy of the module, so match on identity of name.
     const last = app.use.mock.calls[app.use.mock.calls.length - 1][0];

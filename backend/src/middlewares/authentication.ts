@@ -1,45 +1,60 @@
 import express from "express";
 import { UserService } from "../services";
 
-import AuthService from "../services/AuthService";
+import AuthService, {
+  SESSION_COOKIE,
+  UnauthorizedError,
+} from "../services/AuthService";
 
+/**
+ * A sessao chega por cookie httpOnly, nao por header: assim nenhum script da
+ * pagina consegue le-la, que e o furo do localStorage. SPA e API sao servidas
+ * pelo mesmo dominio no CloudFront, entao o cookie viaja sozinho, sem CORS.
+ */
 export async function expressAuthentication(
   request: express.Request,
   securityName: string,
   scopes?: string[]
 ): Promise<any> {
-  if (securityName == "bearer") {
-    const token = request.headers["authorization"];
-    if (token) {
-      const user = await getUserDataFromToken(token);
-      const existingUser = await UserService.findUserById(user.id);
-      if (!existingUser)
-        return Promise.reject(new Error("User does not exist in database."));
-
-      return Promise.resolve(user);
-    }
-    return Promise.reject(new Error("No token provided"));
+  if (securityName !== "bearer") {
+    //resolver undefined aqui faria o tsoa tratar a requisição como autenticada
+    return Promise.reject(
+      new Error(`Unknown security definition: ${securityName}`)
+    );
   }
 
-  if (securityName == "bearerLogin") {
-    const token = request.headers["authorization"];
-    if (token) {
-      const user = await getUserDataFromToken(token);
-      return Promise.resolve(user);
-    }
-    return Promise.reject(new Error("No token provided"));
+  const token = readSessionToken(request);
+  if (!token) return Promise.reject(new UnauthorizedError("No session"));
+
+  let user;
+  try {
+    user = await AuthService.verifySession(token);
+  } catch {
+    //assinatura invalida ou sessao expirada sao a mesma coisa para quem chama:
+    //a sessao nao vale, e detalhar qual dos dois so ajudaria quem esta testando
+    return Promise.reject(new UnauthorizedError("Invalid session"));
   }
 
-  //resolver undefined aqui faria o tsoa tratar a requisição como autenticada
-  return Promise.reject(
-    new Error(`Unknown security definition: ${securityName}`)
-  );
-}
+  const existingUser = await UserService.findUserById(user.id);
+  if (!existingUser) {
+    return Promise.reject(
+      new UnauthorizedError("User does not exist in database.")
+    );
+  }
 
-async function getUserDataFromToken(token: string) {
-  const parsedToken = token.startsWith("Bearer ")
-    ? token.split("Bearer ")[1]
-    : token;
-  const user = await AuthService.authenticateUser(parsedToken);
   return user;
 }
+
+const readSessionToken = (request: express.Request): string | undefined => {
+  const fromCookie = (request.cookies as Record<string, string> | undefined)?.[
+    SESSION_COOKIE
+  ];
+  if (fromCookie) return fromCookie;
+
+  //o Authorization continua aceito para uso programatico (testes, curl); o que
+  //mudou e que agora ele precisa carregar uma sessao assinada por nos
+  const header = request.headers["authorization"];
+  if (!header) return undefined;
+
+  return header.startsWith("Bearer ") ? header.slice("Bearer ".length) : header;
+};

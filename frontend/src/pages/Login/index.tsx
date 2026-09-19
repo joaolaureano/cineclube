@@ -1,10 +1,15 @@
-import React, { useContext } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Redirect, useHistory } from "react-router-dom";
 import { Typography, Container } from "@material-ui/core";
-import { GoogleButton } from "../../components/GoogleButton";
 import { SharedSnackbarContext } from "../../components/SnackBar/SnackContext";
 import { AuthContext } from "../../contexts/AuthContext";
-import UserService from "../../services/user";
+import { renderGoogleButton } from "../../services/googleIdentity";
 import logoImg from "../../assets/images/logos/login-logo.png";
 import useStyles from "./styles";
 
@@ -13,34 +18,38 @@ const Login = (): JSX.Element => {
   const styles = useStyles();
   const auth = useContext(AuthContext);
   const { openSnackbar } = useContext(SharedSnackbarContext);
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    auth.setIsLoggingIn(true);
-    console.log("here");
-    const token = await auth.login();
+  const handleCredential = useCallback(
+    async (credential: string) => {
+      auth.setIsLoggingIn(true);
+      try {
+        const { ok, firstLogin } = await auth.loginWithGoogle(credential);
+        if (!ok) throw new Error("Falha no login");
 
-    try {
-      if (token) {
-        const loginResponse = await UserService.auth();
-        const user = loginResponse.data;
-        if (user) {
-          auth.setIsFirstLogin(!!user.first_login);
-          openSnackbar("Login bem-sucedido", "success");
-          if (user.first_login) {
-            auth.setIsLoggingIn(false);
-            return history.push("/signupPreferences");
-          } else {
-            auth.setIsLoggingIn(false);
-            return history.push("/home");
-          }
-        }
-
-        throw new Error("Falha no login");
+        openSnackbar("Login bem-sucedido", "success");
+        auth.setIsLoggingIn(false);
+        //firstLogin vem do retorno, e nao do estado: setState nao teria
+        //aplicado ainda neste ponto
+        return history.push(firstLogin ? "/signupPreferences" : "/home");
+      } catch (err) {
+        auth.setIsLoggingIn(false);
+        openSnackbar("Login não foi realizado com sucesso", "error");
       }
-    } catch (err) {
-      openSnackbar("Login não foi realizado com sucesso", "error");
-    }
-  };
+    },
+    [auth, history, openSnackbar]
+  );
+
+  useEffect(() => {
+    if (!buttonRef.current) return;
+
+    //o botao e renderizado pelo proprio Google: é ele quem abre o seletor de
+    //conta e devolve o id_token, entao nao ha como imitá-lo com um div nosso
+    renderGoogleButton(buttonRef.current, handleCredential).catch((err) => {
+      setUnavailable((err as Error).message);
+    });
+  }, [handleCredential]);
 
   return (
     <>
@@ -62,9 +71,14 @@ const Login = (): JSX.Element => {
               >
                 Faça seu login ou crie seu cadastro com sua conta do Google.
               </Typography>
-              <GoogleButton onClick={handleLogin}>
-                Continuar com Google
-              </GoogleButton>
+
+              <div ref={buttonRef} />
+
+              {unavailable && (
+                <Typography align="center" variant="body2" color="error">
+                  Login indisponível no momento: {unavailable}
+                </Typography>
+              )}
             </div>
           </Container>
         </div>

@@ -14,60 +14,69 @@ import {
 
 import { HttpResponse } from "../utils/httpResponse";
 import UserService from "../services/UserService";
+import AuthService, { SESSION_COOKIE } from "../services/AuthService";
 import { Achievement, UserMovie } from "../models";
 import { MovieUserStatus } from "../enum/MovieUserStatus";
 
 @Route("user")
 @Tags("UserController")
 export class UserController extends Controller {
+  /**
+   * Troca o id_token do Google por uma sessao da aplicacao.
+   *
+   * Nao leva @Security: e justamente a rota que cria a sessao, e o que
+   * autentica aqui e a assinatura do Google conferida em AuthService.
+   */
   @Post("/auth")
   @SuccessResponse("200")
-  @Security("bearerLogin")
   async authenticate(
+    @Body() requestBody: { credential: string },
     @Request() request: express.Request
   ): Promise<UserAuthenticationResponse> {
-    const { user } = request;
-    if (!user) {
+    const { credential } = requestBody ?? {};
+    if (!credential) {
       this.setStatus(400);
-      return { success: false, message: "Could not authenticate" };
+      return { success: false, message: "Credential is required" };
+    }
+
+    let user;
+    try {
+      user = await AuthService.verifyGoogleIdToken(credential);
+    } catch (err) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "Could not authenticate",
+        details: (err as Error).message,
+      };
     }
 
     try {
-      const existingUser = await UserService.findUserById(user?.id);
+      const existingUser = await UserService.findUserById(user.id);
+      const firstLogin = !existingUser;
 
-      if (existingUser) {
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "User already exists.",
-          body: {
-            user: {
-              ...user,
-              randomness: existingUser.randomness,
-            },
+      const storedUser = existingUser ?? (await UserService.createUser(user));
+      if (!storedUser) throw new Error("Could not persist user");
+
+      const session = await AuthService.issueSession(user);
+      setSessionCookie(request, session);
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: firstLogin
+          ? "New user successfully created."
+          : "User already exists.",
+        body: {
+          user: {
+            id: storedUser.id,
+            name: storedUser.name,
+            photo_path: storedUser.photo_path,
+            randomness: storedUser.randomness,
           },
-        };
-      }
-
-      const createdUser = await UserService.createUser(user);
-      if (createdUser) {
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "New user successfully created.",
-          body: {
-            user: {
-              photo_path: createdUser.photo_path,
-              id: createdUser.id,
-              name: createdUser.name,
-              randomness: createdUser.randomness,
-            },
-          },
-          firstLogin: true,
-        };
-      }
-
-      throw new Error();
+        },
+        firstLogin,
+      };
     } catch (err) {
       this.setStatus(500);
       const error = err as Error;
@@ -77,6 +86,22 @@ export class UserController extends Controller {
         details: error.message,
       };
     }
+  }
+
+  @Post("/logout")
+  @SuccessResponse("200")
+  async logout(
+    @Request() request: express.Request
+  ): Promise<{ success: boolean; message: string }> {
+    //Max-Age=0 e o que apaga o cookie no navegador; limpar so o estado do
+    //cliente deixaria a sessao valida para quem ainda tivesse o valor
+    request.res?.append(
+      "Set-Cookie",
+      `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+    );
+
+    this.setStatus(200);
+    return { success: true, message: "Logged out" };
   }
 
   @Post("/movie")
@@ -285,3 +310,22 @@ interface MovieStatusResponse extends HttpResponse {
     achievements: Achievement[];
   };
 }
+
+/**
+ * Secure sem excecao: a aplicacao so existe atras do CloudFront, em HTTPS.
+ * SameSite=Lax deixa o cookie viajar na navegacao normal mas nao em POST
+ * vindo de outro site, que e a protecao contra CSRF de que precisamos aqui.
+ */
+const setSessionCookie = (request: express.Request, session: string): void => {
+  request.res?.append(
+    "Set-Cookie",
+    [
+      `${SESSION_COOKIE}=${session}`,
+      "Path=/",
+      "HttpOnly",
+      "Secure",
+      "SameSite=Lax",
+      `Max-Age=${AuthService.SESSION_TTL_SECONDS}`,
+    ].join("; ")
+  );
+};

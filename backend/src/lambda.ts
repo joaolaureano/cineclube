@@ -24,7 +24,11 @@ const loadSecret = async (): Promise<void> => {
   const ssm = new SSMClient({});
   const { Parameters } = await ssm.send(
     new GetParametersCommand({
-      Names: [`${prefix}/DB_URL`, `${prefix}/ORIGIN_SECRET`],
+      Names: [
+        `${prefix}/DB_URL`,
+        `${prefix}/ORIGIN_SECRET`,
+        `${prefix}/SESSION_SECRET`,
+      ],
       WithDecryption: true,
     })
   );
@@ -40,6 +44,12 @@ const loadSecret = async (): Promise<void> => {
 
   const originSecret = byName.get(`${prefix}/ORIGIN_SECRET`);
   if (originSecret) process.env.ORIGIN_SECRET = originSecret;
+
+  //sem ele nao ha como assinar nem verificar sessao: falhar aqui e melhor que
+  //descobrir no primeiro login, com o usuario na frente
+  const sessionSecret = byName.get(`${prefix}/SESSION_SECRET`);
+  if (!sessionSecret) throw new Error(`${prefix}/SESSION_SECRET vazio ou ilegivel`);
+  process.env.SESSION_SECRET = sessionSecret;
 };
 
 // A Function URL e publica: sem esta conferencia, qualquer um que descobrisse o

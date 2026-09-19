@@ -1,5 +1,6 @@
 import { ValidateError } from "tsoa";
 import { errorhandler } from "../../src/utils/errorHandler";
+import { UnauthorizedError } from "../../src/services/AuthService";
 
 type MockResponse = import("express").Response & {
   status: jest.Mock;
@@ -57,5 +58,20 @@ describe("errorhandler", () => {
       success: false,
     });
     expect(next).not.toHaveBeenCalled();
+  });
+
+  // Sessao ausente ou invalida nao e falha do servidor: devolver 500 faria o
+  // cliente tratar "faca login" como indisponibilidade, e esconderia a causa.
+  it("answers 401 for an authentication failure", () => {
+    const res = buildResponse();
+
+    errorhandler(new UnauthorizedError("Invalid session"), req, res, jest.fn());
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Unauthorized",
+      errorMessage: "Invalid session",
+      success: false,
+    });
   });
 });

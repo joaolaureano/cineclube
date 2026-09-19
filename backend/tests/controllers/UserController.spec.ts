@@ -5,6 +5,20 @@ import { MovieUserStatus } from "../../src/enum/MovieUserStatus";
 
 jest.mock("../../src/services/UserService");
 
+const mockedAuth = {
+  verifyGoogleIdToken: jest.fn(),
+  issueSession: jest.fn(),
+};
+jest.mock("../../src/services/AuthService", () => ({
+  __esModule: true,
+  SESSION_COOKIE: "cineclube_session",
+  default: {
+    verifyGoogleIdToken: (...a: unknown[]) => mockedAuth.verifyGoogleIdToken(...a),
+    issueSession: (...a: unknown[]) => mockedAuth.issueSession(...a),
+    SESSION_TTL_SECONDS: 28800,
+  },
+}));
+
 const mockedUserService = UserService as jest.Mocked<typeof UserService>;
 
 const buildRequest = (user?: {
@@ -14,81 +28,121 @@ const buildRequest = (user?: {
   photo_path?: string;
 }) => (({ user } as unknown) as express.Request);
 
+const appended: string[] = [];
+const authRequest = () =>
+  (({
+    res: { append: (_: string, value: string) => appended.push(value) },
+  } as unknown) as express.Request);
+
+const googleUser = {
+  id: "google:1234567890",
+  name: "Joao",
+  email: "joao@example.com",
+  photo_path: "path.png",
+};
+
 describe("UserController", () => {
   describe("authenticate", () => {
-    it("returns 400 when there is no user on the request", async () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      appended.length = 0;
+      mockedAuth.verifyGoogleIdToken.mockResolvedValue(googleUser);
+      mockedAuth.issueSession.mockResolvedValue("sessao-assinada");
+    });
+
+    it("returns 400 when no credential is sent", async () => {
       const controller = new UserController();
-      const result = await controller.authenticate(buildRequest(undefined));
+      const result = await controller.authenticate(
+        { credential: "" },
+        authRequest()
+      );
 
       expect(result).toEqual({
         success: false,
-        message: "Could not authenticate",
+        message: "Credential is required",
       });
       expect(controller.getStatus()).toBe(400);
     });
 
-    it("returns 200 merging randomness when the user already exists", async () => {
-      const existingUser = { randomness: 42 } as any;
-      mockedUserService.findUserById.mockResolvedValue(existingUser);
-
-      const controller = new UserController();
-      const request = buildRequest({ id: "u1", name: "Joao" });
-      const result = await controller.authenticate(request);
-
-      expect(mockedUserService.findUserById).toHaveBeenCalledWith("u1");
-      expect(result).toEqual({
-        success: true,
-        message: "User already exists.",
-        body: {
-          user: { id: "u1", name: "Joao", randomness: 42 },
-        },
-      });
-      expect(controller.getStatus()).toBe(200);
-    });
-
-    it("creates the user and returns firstLogin:true when the user is not found", async () => {
-      mockedUserService.findUserById.mockResolvedValue(undefined);
-      const createdUser = {
-        id: "u1",
-        name: "Joao",
-        photo_path: "path.png",
-        randomness: 0,
-      } as any;
-      mockedUserService.createUser.mockResolvedValue(createdUser);
-
-      const controller = new UserController();
-      const request = buildRequest({ id: "u1", name: "Joao" });
-      const result = await controller.authenticate(request);
-
-      expect(mockedUserService.createUser).toHaveBeenCalledWith(request.user);
-      expect(result).toEqual({
-        success: true,
-        message: "New user successfully created.",
-        body: {
-          user: {
-            photo_path: "path.png",
-            id: "u1",
-            name: "Joao",
-            randomness: 0,
-          },
-        },
-        firstLogin: true,
-      });
-      expect(controller.getStatus()).toBe(200);
-    });
-
-    it("returns 500 when createUser resolves falsy (falls through to throw)", async () => {
-      mockedUserService.findUserById.mockResolvedValue(undefined);
-      mockedUserService.createUser.mockResolvedValue(undefined as any);
+    // Credencial que nao vem do Google nao cria sessao nenhuma - e o ponto do
+    // desenho: quem entra e quem o Google confirma, nao quem afirma ser.
+    it("returns 401 when the google credential does not verify", async () => {
+      mockedAuth.verifyGoogleIdToken.mockRejectedValue(new Error("assinatura invalida"));
 
       const controller = new UserController();
       const result = await controller.authenticate(
-        buildRequest({ id: "u1", name: "Joao" })
+        { credential: "forjado" },
+        authRequest()
       );
 
+      expect(controller.getStatus()).toBe(401);
       expect(result.success).toBe(false);
-      expect(controller.getStatus()).toBe(500);
-      expect(result.message).toBe("Internal server error.");
+      expect(mockedAuth.issueSession).not.toHaveBeenCalled();
+      expect(appended).toHaveLength(0);
+    });
+
+    it("returns 200 and sets the session cookie when the user already exists", async () => {
+      mockedUserService.findUserById.mockResolvedValue({
+        id: googleUser.id,
+        name: "Joao",
+        photo_path: "path.png",
+        randomness: 42,
+      } as any);
+
+      const controller = new UserController();
+      const result = await controller.authenticate(
+        { credential: "id-token-do-google" },
+        authRequest()
+      );
+
+      expect(result).toMatchObject({
+        success: true,
+        message: "User already exists.",
+        firstLogin: false,
+      });
+      expect(controller.getStatus()).toBe(200);
+      expect(mockedUserService.createUser).not.toHaveBeenCalled();
+    });
+
+    it("creates the user and reports firstLogin on the first visit", async () => {
+      mockedUserService.findUserById.mockResolvedValue(undefined);
+      mockedUserService.createUser.mockResolvedValue({
+        id: googleUser.id,
+        name: "Joao",
+        photo_path: "path.png",
+        randomness: 0,
+      } as any);
+
+      const controller = new UserController();
+      const result = await controller.authenticate(
+        { credential: "id-token-do-google" },
+        authRequest()
+      );
+
+      expect(mockedUserService.createUser).toHaveBeenCalledWith(googleUser);
+      expect(result).toMatchObject({ firstLogin: true, success: true });
+      expect(controller.getStatus()).toBe(200);
+    });
+
+    // httpOnly e o que impede um XSS de ler a sessao; Secure e SameSite sao o
+    // que impedem que ela viaje em texto claro ou num POST de outro site.
+    it("sets the cookie httpOnly, Secure and SameSite", async () => {
+      mockedUserService.findUserById.mockResolvedValue({
+        id: googleUser.id,
+        randomness: 1,
+      } as any);
+
+      await new UserController().authenticate(
+        { credential: "id-token-do-google" },
+        authRequest()
+      );
+
+      expect(appended).toHaveLength(1);
+      const cookie = appended[0];
+      expect(cookie).toContain("cineclube_session=sessao-assinada");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("SameSite=Lax");
     });
 
     it("returns a 500 that does not leak the server's filesystem path", async () => {
@@ -96,7 +150,8 @@ describe("UserController", () => {
 
       const controller = new UserController();
       const result = await controller.authenticate(
-        buildRequest({ id: "u1", name: "Joao" })
+        { credential: "id-token-do-google" },
+        authRequest()
       );
 
       expect(controller.getStatus()).toBe(500);
@@ -105,6 +160,19 @@ describe("UserController", () => {
       // The message used to carry __dirname appended to it, exposing an absolute
       // server path to any client that triggered an error.
       expect(result.message).toBe("Internal server error.");
+    });
+  });
+
+  describe("logout", () => {
+    // Limpar so o estado do cliente deixaria a sessao valida para quem ainda
+    // tivesse o valor do cookie; Max-Age=0 e o que a apaga de fato.
+    it("expires the session cookie", async () => {
+      appended.length = 0;
+      const result = await new UserController().logout(authRequest());
+
+      expect(result.success).toBe(true);
+      expect(appended[0]).toContain("Max-Age=0");
+      expect(appended[0]).toContain("HttpOnly");
     });
   });
 
