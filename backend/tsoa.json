@@ -1,0 +1,36 @@
+{
+  "entryFile": "./src/index.ts",
+  "controllerPathGlobs": [
+    "./src/**/*Controller.ts"
+  ],
+  "spec": {
+    "outputDirectory": "./dist/",
+    "basePath": "/api/v1",
+    "securityDefinitions": {
+      "bearer": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "authorization",
+        "description": "Token provis\u00f3rio: payload JSON em base64url, sem verifica\u00e7\u00e3o de assinatura."
+      },
+      "bearerLogin": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "authorization",
+        "description": "Idem bearer, mas sem exigir que o usu\u00e1rio j\u00e1 exista no banco (primeiro login)."
+      }
+    }
+  },
+  "swagger": {
+    "specVersion": 3,
+    "outputDirectory": "./dist/",
+    "entryFile": "./src/index.ts"
+  },
+  "routes": {
+    "outputDirectory": "./dist/",
+    "basePath": "/api/v1",
+    "entryFile": "./src/index.ts",
+    "routesDir": "./src/routes/",
+    "authenticationModule": "./src/middlewares/authentication.ts"
+  }
+}

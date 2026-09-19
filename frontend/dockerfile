@@ -1,0 +1,31 @@
+FROM node:18-alpine AS build
+
+WORKDIR /app
+
+COPY package*.json /app/
+RUN npm ci
+
+COPY . .
+
+# o CRA grava as REACT_APP_* no bundle em tempo de compilacao, nao em runtime
+ARG REACT_APP_API_URL=/api/v1
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+
+# o codigo atual nao esta livre de warnings e CI=true os trata como erro
+ENV CI=false
+
+# react-scripts 4 roda webpack 4, que faz hash MD4 pelo OpenSSL. O Node 17+
+# tirou esse algoritmo do provider padrao e o build morre com
+# ERR_OSSL_EVP_UNSUPPORTED. A flag reabilita o provider legado so no build;
+# o runtime aqui e nginx, nao Node. Sai quando o react-scripts for atualizado.
+ENV NODE_OPTIONS=--openssl-legacy-provider
+RUN npm run build
+
+FROM nginx:alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/build /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

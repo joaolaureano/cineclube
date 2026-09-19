@@ -1,0 +1,24 @@
+version: "3" # version of docker-composeservices: # defining service/s
+services:
+  web-app: # name of the service
+    build: . # directory what to build, here it is root directory
+    container_name: web
+    ports:
+      - '3000:3000' # defining port for our app
+    # image: nodejs
+    stdin_open: true
+    tty: true
+    restart: always
+    networks:
+      - app-network
+    env_file: ./.env
+    environment:
+      REACT_APP_API_KEY: $REACT_APP_API_KEY
+      REACT_APP_AUTH_DOMAIN: $REACT_APP_AUTH_DOMAIN
+      REACT_APP_PROJECT_ID: $REACT_APP_PROJECT_ID
+      REACT_APP_STORAGE_BUCKET: $REACT_APP_STORAGE_BUCKET
+      REACT_APP_MESSAGING_SENDER_ID: $REACT_APP_MESSAGING_SENDER_ID
+      REACT_APP_APP_ID: $REACT_APP_APP_ID
+networks:
+  app-network:
+    driver: bridge

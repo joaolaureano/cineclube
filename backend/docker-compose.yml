@@ -1,0 +1,63 @@
+services:
+  node-api:
+    build: .
+    image: cineclube-backend
+    container_name: api
+    restart: always
+    env_file: ./.env
+    # publicado so no loopback: quem alcanca a API de fora e o nginx do
+    # servico web. O health check do bootstrap continua funcionando.
+    ports:
+      - "127.0.0.1:${PORT}:${PORT}"
+    depends_on:
+      cinedb:
+        condition: service_healthy
+    networks:
+      - app-network
+    # migrations rodam a cada boot por serem idempotentes; o seed não é e
+    # continua sendo um passo manual (npm run db:seed)
+    command: sh -c "npm run typeorm -- migration:run && node dist/src/index.js"
+
+  web:
+    build:
+      context: ../cineclube_frontend
+      args:
+        # relativo de proposito: o bundle nao carrega o endereco da instancia,
+        # entao trocar o Elastic IP nao obriga a recompilar o frontend
+        REACT_APP_API_URL: /api/v1
+    image: cineclube-frontend
+    container_name: web
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - node-api
+    networks:
+      - app-network
+
+  cinedb:
+    image: postgres:14-alpine
+    restart: always
+    container_name: cinedb
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - cinedb:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  cinedb:
