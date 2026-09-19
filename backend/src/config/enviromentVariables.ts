@@ -2,6 +2,7 @@ import "./dotenv";
 
 const {
   PORT,
+  DB_URL,
   DB_HOST,
   DB_USERNAME,
   DB_PASSWORD,
@@ -12,6 +13,9 @@ const {
 
 const variables = {
   PORT: Number(PORT),
+  //banco gerenciado (Neon) entrega uma connection string unica; quando ela
+  //existe, as variaveis avulsas abaixo sao ignoradas
+  DB_URL,
   DB_HOST,
   DB_USERNAME,
   DB_PASSWORD,

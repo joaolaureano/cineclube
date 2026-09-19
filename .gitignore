@@ -10,7 +10,7 @@ coverage/
 *.local
 
 # infraestrutura: o  e mantido fora do repositorio de proposito.
-# . guarda segredos em texto plano (DB_PASSWORD) e os JSONs
+# . guarda segredos em texto plano (a connection string) e os JSONs
 # de policy descrevem a superficie IAM da conta. Nada disso entra num repo
 # publico.
 /

@@ -24,9 +24,11 @@ describe("enviromentVariables", () => {
       DB_PORT: "5432",
       DB_SSL: "true",
     };
+    delete process.env.DB_URL;
 
     expect(loadVariables()).toEqual({
       PORT: 8080,
+      DB_URL: undefined,
       DB_HOST: "db.internal",
       DB_USERNAME: "cine",
       DB_PASSWORD: "secret",
@@ -49,6 +51,16 @@ describe("enviromentVariables", () => {
       expect(loadVariables().DB_SSL).toBe(false);
     }
   );
+
+  // A connection string de banco gerenciado passa inteira, sem coercao: quem
+  // decide o que fazer com ela e config/database.
+  it("passes DB_URL through untouched", () => {
+    process.env = { ...original, DB_URL: "postgresql://u:p@host/db?sslmode=require" };
+
+    expect(loadVariables().DB_URL).toBe(
+      "postgresql://u:p@host/db?sslmode=require"
+    );
+  });
 
   // Number(undefined) is NaN, not a throw. server.ts relies on NaN being falsy for its
   // `variables.PORT || 5000` fallback, so this is load-bearing behaviour.

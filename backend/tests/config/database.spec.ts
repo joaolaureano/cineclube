@@ -1,18 +1,24 @@
 import databaseOptions from "../../src/config/database";
 import variables from "../../src/config/enviromentVariables";
 
-const loadOptions = (dbSsl?: string) => {
+const loadOptions = (dbSsl?: string, dbUrl?: string) => {
   const original = process.env;
   process.env = { ...original };
   if (dbSsl === undefined) delete process.env.DB_SSL;
   else process.env.DB_SSL = dbSsl;
+  if (dbUrl === undefined) delete process.env.DB_URL;
+  else process.env.DB_URL = dbUrl;
 
   let options: typeof import("../../src/config/database").default;
   jest.isolateModules(() => {
     options = require("../../src/config/database").default;
   });
   process.env = original;
-  return options! as { extra: { ssl?: { rejectUnauthorized: boolean } } };
+  return options! as {
+    url?: string;
+    host?: string;
+    extra: { ssl?: { rejectUnauthorized: boolean } };
+  };
 };
 
 describe("database options", () => {
@@ -53,6 +59,27 @@ describe("database options", () => {
   it("enables ssl when DB_SSL is set, for managed databases", () => {
     expect(loadOptions("true").extra).toEqual({
       ssl: { rejectUnauthorized: false },
+    });
+  });
+
+  // Com DB_URL o banco e gerenciado: a string manda, e as variaveis avulsas
+  // deixam de valer para nao produzirem uma conexao pela metade.
+  describe("with a managed connection string", () => {
+    const url = "postgresql://u:p@ep-x.aws.neon.tech/neondb?sslmode=require";
+
+    it("connects by url instead of the discrete settings", () => {
+      const options = loadOptions(undefined, url);
+
+      expect(options.url).toBe(url);
+      expect(options.host).toBeUndefined();
+    });
+
+    // Neon encadeia num CA publico, entao verificar o certificado funciona - e
+    // nao verificar seria aceitar qualquer servidor no meio do caminho.
+    it("requires a verified tls certificate", () => {
+      expect(loadOptions(undefined, url).extra).toEqual({
+        ssl: { rejectUnauthorized: true },
+      });
     });
   });
 });
