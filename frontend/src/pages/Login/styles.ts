@@ -45,6 +45,15 @@ const useStyles = makeStyles((theme: Theme) =>
       maxWidth: "600px",
     },
 
+    //o botao e renderizado pelo Google num iframe de largura fixa, entao ele
+    //nao se estica como o GoogleButton fazia com width 100%; o marginTop
+    //repete o que vinha do proprio botao para o espacamento nao mudar
+    googleButton: {
+      display: "flex",
+      justifyContent: "center",
+      marginTop: "38px",
+    },
+
     text: {
       fontSize: 45,
       color: theme.palette.primary.dark,

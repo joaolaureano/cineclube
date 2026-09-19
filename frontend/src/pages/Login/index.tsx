@@ -72,7 +72,7 @@ const Login = (): JSX.Element => {
                 Faça seu login ou crie seu cadastro com sua conta do Google.
               </Typography>
 
-              <div ref={buttonRef} />
+              <div className={styles.googleButton} ref={buttonRef} />
 
               {unavailable && (
                 <Typography align="center" variant="body2" color="error">

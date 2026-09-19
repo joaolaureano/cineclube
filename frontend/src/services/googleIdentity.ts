@@ -107,6 +107,8 @@ export const renderGoogleButton = async (
     size: "large",
     text: "signin_with",
     locale: "pt-BR",
-    width: 280,
+    //400 e o maximo que o GIS aceita; o GoogleButton anterior ocupava a
+    //largura do wrapper, entao quanto mais largo, mais perto do que era
+    width: 400,
   });
 };
