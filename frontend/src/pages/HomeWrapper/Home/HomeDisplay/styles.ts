@@ -4,6 +4,9 @@ const useStyles = makeStyles((theme) => {
   return createStyles({
     root: {
       maxWidth: "700px",
+      //no celular a coluna preenche a tela e a margem nao faz diferenca; no
+      //desktop e ela que tira o conteudo da borda esquerda
+      margin: "0 auto",
       height: "100%",
       background: theme.palette.background.default,
     },
@@ -23,7 +26,10 @@ const useStyles = makeStyles((theme) => {
       top: 0,
       zIndex: 5,
 
-      width: "100%",
+      //de ponta a ponta, sem acompanhar a coluna central: o logo fica na borda
+      //esquerda e os icones na direita, por marginLeft auto em sideIcon
+      left: 0,
+      right: 0,
       padding: "1.7rem 2rem 1.5rem 2rem",
 
       display: "flex",
@@ -153,8 +159,9 @@ const useStyles = makeStyles((theme) => {
       justifyContent: "space-around",
       alignItems: "center",
       maxWidth: "700px",
+      //centraliza sobre a faixa do AppBar, que segue atravessando a tela
+      margin: "0 auto 0.5rem",
       background: theme.palette.background.default,
-      marginBottom: "0.5rem",
       borderRadius: "0 0 2rem 2rem",
     },
 
