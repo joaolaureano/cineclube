@@ -18,7 +18,9 @@ ENV CI=false
 # tirou esse algoritmo do provider padrao e o build morre com
 # ERR_OSSL_EVP_UNSUPPORTED. A flag reabilita o provider legado so no build;
 # o runtime aqui e nginx, nao Node. Sai quando o react-scripts for atualizado.
-ENV NODE_OPTIONS=--openssl-legacy-provider
+# --max-old-space-size: o limite padrao do V8 numa t3.micro fica em ~450 MB
+# e o build do CRA estoura o heap antes de terminar. 2 GB usa o swap.
+ENV NODE_OPTIONS="--openssl-legacy-provider --max-old-space-size=2048"
 RUN npm run build
 
 FROM nginx:alpine
