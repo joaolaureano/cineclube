@@ -1,0 +1,15 @@
+# sem isto o COPY . . sobrescreve o node_modules instalado pelo npm ci
+# dentro da imagem com o do host, que pode ter binarios de outra arquitetura
+node_modules
+npm-debug.log
+
+dist
+build
+coverage
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.DS_Store
+

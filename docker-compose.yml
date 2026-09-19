@@ -1,6 +1,6 @@
 services:
   node-api:
-    build: .
+    build: ./backend
     image: cineclube-backend
     container_name: api
     restart: always
@@ -20,7 +20,7 @@ services:
 
   web:
     build:
-      context: ../cineclube_frontend
+      context: ./frontend
       args:
         # relativo de proposito: o bundle nao carrega o endereco da instancia,
         # entao trocar o Elastic IP nao obriga a recompilar o frontend
