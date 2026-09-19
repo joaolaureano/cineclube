@@ -195,7 +195,7 @@ export const HomeDisplay: React.FC<HomeDisplayProps> = (props) => {
 
         {/* Botoes do Tinder */}
         <AppBar position="fixed" color="transparent" className={classes.appBar}>
-          <div className={classes.page}>
+          <div className={classes.bottomBar}>
             <div className={classes.bottomMenu}>
               <IconButton
                 onClick={logic.functions.handleClickUndoLastAction}

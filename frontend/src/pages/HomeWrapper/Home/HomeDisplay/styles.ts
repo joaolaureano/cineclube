@@ -1,26 +1,26 @@
 import { makeStyles, createStyles } from "@material-ui/core";
 
+//A largura do bloco central, declarada uma vez e usada por quem precisa dela:
+//o fundo, o conteudo e a barra de acoes. Assim as tres acompanham umas as
+//outras por construcao, em vez de repetirem o mesmo numero.
+const block = {
+  width: "100%",
+  maxWidth: "700px",
+  margin: "0 auto",
+};
+
 const useStyles = makeStyles((theme) => {
   return createStyles({
     root: {
-      maxWidth: "700px",
-      //no celular a coluna preenche a tela e a margem nao faz diferenca; no
-      //desktop e ela que tira o conteudo da borda esquerda
-      margin: "0 auto",
+      ...block,
       height: "100%",
       background: theme.palette.background.default,
     },
 
-    //Largura do app, declarada uma vez. O conteudo e a barra de acoes usam esta
-    //mesma classe, entao acompanham uma a outra por construcao - antes o
-    //conteudo passava por dois Container do MUI aninhados e a barra por nenhum,
-    //e a diferenca de recuo aparecia como larguras distintas no desktop.
+    //O bloco com o recuo do texto: e o que a foto e as informacoes do filme
+    //usam. O mesmo recuo que os dois Container do MUI somavam antes.
     page: {
-      width: "100%",
-      maxWidth: "700px",
-      margin: "0 auto",
-      //o mesmo recuo que os dois Container somavam: spacing(3) cada, spacing(2)
-      //no celular
+      ...block,
       paddingLeft: theme.spacing(6),
       paddingRight: theme.spacing(6),
 
@@ -29,6 +29,10 @@ const useStyles = makeStyles((theme) => {
         paddingRight: theme.spacing(4),
       },
     },
+
+    //A barra de acoes ocupa o bloco inteiro: ela e a base do bloco, nao uma
+    //linha de texto dentro dele, entao nao leva o recuo lateral.
+    bottomBar: block,
 
     container: {
       display: "flex",
