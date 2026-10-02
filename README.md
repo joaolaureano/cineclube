@@ -1,6 +1,6 @@
 # 🎬 Cinehal
 
-**[Leia em português / Read this in Portuguese](README.md)**
+**[Leia em português / Read this in Portuguese](README.pt-BR.md)**
 
 Movie recommendations as a card deck: one movie at a time, and four actions. Your choices feed a tag profile that ranks what comes next.
 

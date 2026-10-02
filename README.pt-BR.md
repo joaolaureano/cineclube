@@ -1,6 +1,6 @@
 # 🎬 Cinehal
 
-**[Read this in English / Leia em inglês](README.en.md)**
+**[Read this in English / Leia em inglês](README.md)**
 
 Recomendação de filmes no formato de baralho: um filme por vez, e quatro ações. As escolhas alimentam um perfil de tags que ordena o que vem depois.
 
