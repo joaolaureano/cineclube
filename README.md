@@ -1,128 +1,128 @@
 # 🎬 Cinehal
 
-**[Read this in English / Leia em inglês](README.en.md)**
+**[Leia em português / Read this in Portuguese](README.md)**
 
-Recomendação de filmes no formato de baralho: um filme por vez, e quatro ações. As escolhas alimentam um perfil de tags que ordena o que vem depois.
+Movie recommendations as a card deck: one movie at a time, and four actions. Your choices feed a tag profile that ranks what comes next.
 
-### Funcionalidades
+### Features
 
-- **Baralho de recomendação** — um filme por vez, com capa, sinopse, crítica, elenco, direção, duração e onde assistir. Quatro ações: *já assisti*, *quero assistir*, *não quero assistir* e *desfazer*.
-- **Perfil de gosto** — quem marca "já assisti" diz também se gostou. Cada escolha soma pontos nas tags do filme, e é esse acúmulo que ordena as recomendações seguintes.
-- **Filtros por tag** — restringe o baralho a gêneros e temas escolhidos. Ao fim da lista, os filtros se limpam sozinhos.
-- **Minhas listas** — o que foi marcado fica em listas separadas por status.
-- **Conquistas** — marcos por hábito de quem assiste ("Que drama!" depois de cinco filmes de drama, e assim por diante).
-- **Preferências iniciais** — no primeiro acesso, o usuário escolhe tags para o perfil não começar vazio.
-- **Tutorial e créditos** — apresentação das ações na primeira visita, e a lista de quem construiu o projeto.
+- **Recommendation deck**: one movie at a time, with poster, synopsis, review, cast, director, runtime and where to watch. Four actions: *already watched*, *want to watch*, *don't want to watch* and *undo*.
+- **Taste profile**: when you mark "already watched", you also say whether you liked it. Each choice adds points to the movie's tags, and that running total ranks the next recommendations.
+- **Tag filters**: restrict the deck to chosen genres and themes. When the list runs out, the filters clear themselves.
+- **My lists**: everything you mark goes into separate lists by status.
+- **Achievements**: milestones based on viewing habits ("Que drama!" after five drama movies, and so on).
+- **Initial preferences**: on first access, the user picks tags so the profile doesn't start empty.
+- **Tutorial and credits**: an introduction to the actions on the first visit, and the list of people who built the project.
 
-O projeto nasceu na disciplina **[AGES / PUCRS](https://tools.ages.pucrs.br/cine-clube/cineclube-wiki)** e foi desenvolvido em um único semestre (veja os [créditos](#-créditos)).
+The project started in the **[AGES / PUCRS](https://tools.ages.pucrs.br/cine-clube/cineclube-wiki)** program and was built in a single semester (see the [credits](#-credits)).
 
-## 🧰 Stack da aplicação
+## 🧰 Application stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
 | Frontend | React 17 · TypeScript · Material-UI v4 · axios |
-| Backend | Node 18 · Express · tsoa (rotas + Swagger) · TypeORM 0.2 |
-| Testes | Jest — 156 no backend |
+| Backend | Node 18 · Express · tsoa (routes + Swagger) · TypeORM 0.2 |
+| Tests | Jest, 156 in the backend |
 
 ---
 
-## 🔧 O que foi adicionado depois
+## 🔧 What was added later
 
-**Nada desta seção faz parte das entregas da AGES.** O código de produto
-descrito acima é das equipes; a infraestrutura, o deploy e a autenticação
-atuais vieram depois, como trabalho posterior ao projeto original.
+**Nothing in this section is part of the AGES deliverables.** The product code
+described above belongs to the teams; the current infrastructure, deployment and
+authentication came later, as work done after the original project.
 
-### Arquitetura atual
+### Current architecture
 
 ```mermaid
 graph LR
-    U["Navegador"] -->|HTTPS| CF["CloudFront"]
-    CF -->|"/ (padrão)"| S3["S3 privado<br/>SPA compilada"]
-    CF -->|"/api/* e /health"| FU["Lambda Function URL"]
+    U["Browser"] -->|HTTPS| CF["CloudFront"]
+    CF -->|"/ (default)"| S3["Private S3<br/>built SPA"]
+    CF -->|"/api/* and /health"| FU["Lambda Function URL"]
     FU --> L["Lambda<br/>Express + TypeORM"]
-    L -->|TLS| N["Neon<br/>Postgres serverless"]
-    L --> SSM["SSM Parameter Store<br/>segredos"]
+    L -->|TLS| N["Neon<br/>serverless Postgres"]
+    L --> SSM["SSM Parameter Store<br/>secrets"]
     U -.->|id_token| G["Google Identity"]
-    L -.->|verifica no JWKS| G
+    L -.->|verifies against JWKS| G
 ```
 
-O CloudFront é o único endereço público: serve a SPA do S3 (bucket privado, via Origin Access Control) e encaminha `/api/*` para a Lambda. Por serem o mesmo domínio, não há CORS e a sessão viaja em cookie `HttpOnly`.
+CloudFront is the only public address: it serves the SPA from S3 (private bucket, through Origin Access Control) and forwards `/api/*` to the Lambda. Since both live on the same domain there is no CORS, and the session travels in an `HttpOnly` cookie.
 
-**Custo em regime:** S3 e CloudFront em centavos; Lambda, Function URL, Parameter Store e Neon dentro do free tier.
+**Steady-state cost:** S3 and CloudFront cost cents; Lambda, Function URL, Parameter Store and Neon stay within the free tier.
 
-### Stack de infraestrutura
+### Infrastructure stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
-| Banco | PostgreSQL 18 no Neon (endpoint com pooler) |
-| Identidade | Google Identity Services → sessão própria JWT HS256 |
+| Database | PostgreSQL 18 on Neon (pooled endpoint) |
+| Identity | Google Identity Services → own JWT HS256 session |
 | Infra | Lambda · S3 · CloudFront · SSM Parameter Store |
 
-### Monorepo e um único compose
+### Monorepo and a single compose file
 
-`backend/` e `frontend/` viviam em repositórios separados, cada um com seu deploy. Passaram a ser um só repositório, com um `docker-compose.yml` na raiz apontando para os dois contextos de build.
+`backend/` and `frontend/` used to live in separate repositories, each with its own deployment. They became a single repository, with a `docker-compose.yml` at the root pointing to both build contexts.
 
-> 🪤 O build do CRA sozinho passa de 1 GB de heap. Numa `t3.micro` de 1 GB, subir os dois serviços em paralelo estourava a memória — daí o build ser sequencial e a instância ganhar 4 GB de swap.
+> 🪤 The CRA build alone goes past 1 GB of heap. On a 1 GB `t3.micro`, building both services in parallel ran out of memory, so the build is sequential and the instance got 4 GB of swap.
 
-### Banco: de container para o Neon
+### Database: from a container to Neon
 
-O Postgres rodava num container ao lado da aplicação, o que prendia o dado ao ciclo de vida da máquina — e impedia qualquer caminho serverless, porque função não roda um banco ao lado.
+Postgres ran in a container next to the application, which tied the data to the machine's lifecycle and ruled out any serverless path, since a function can't run a database beside it.
 
-A aplicação passou a aceitar `DB_URL` com a connection string inteira; sem ela, o caminho antigo (host/porta/usuário) continua valendo para desenvolvimento local. No caminho gerenciado, o TLS exige **certificado verificado** — o do Neon encadeia numa CA pública, então não há motivo para abrir mão da proteção contra MITM.
+The application now accepts `DB_URL` with the full connection string; without it, the old path (host/port/user) still works for local development. On the managed path, TLS requires a **verified certificate**: Neon's chains to a public CA, so there is no reason to give up protection against MITM.
 
 ### EC2 → Lambda + S3
 
-A EC2 rodava nginx, API e banco, cobrada por hora mesmo parada. Hoje:
+The EC2 instance ran nginx, the API and the database, and was billed by the hour even when idle. Now:
 
-- o Express é embrulhado por `serverless-http` num handler próprio;
-- a SPA compilada vai para um bucket S3 privado;
-- o CloudFront assume o papel de roteador que era do nginx.
+- Express is wrapped by `serverless-http` in a dedicated handler;
+- the built SPA goes to a private S3 bucket;
+- CloudFront takes over the routing role nginx used to have.
 
-O que a EC2 custava (instância + IPv4 público) saiu da conta.
+What the EC2 cost (instance + public IPv4) is gone from the bill.
 
-> 🪤 O handler monta o app **fora** do handler para aproveitar containers mornos, e reconfere a conexão a cada invocação — o pooler do Neon fecha conexões ociosas, e o container volta morno com a conexão já morta.
+> 🪤 The handler builds the app **outside** the handler to take advantage of warm containers, and rechecks the connection on every invocation: Neon's pooler closes idle connections, and a container can come back warm with an already dead connection.
 
-### Autenticação de verdade
+### Real authentication
 
-O Firebase tinha sido removido em algum momento e o que ficou no lugar não verificava nada: o token era um JSON em base64 montado pelo próprio cliente. Na prática, mandar `Authorization: <id-de-alguém>` devolvia os dados daquela pessoa.
+Firebase had been removed at some point, and what replaced it verified nothing: the token was base64 JSON built by the client itself. In practice, sending `Authorization: <someone's-id>` returned that person's data.
 
-Assinar no frontend não resolveria — a chave estaria no bundle. A emissão foi para o servidor:
+Signing on the frontend wouldn't fix it, because the key would be in the bundle. Token issuing moved to the server:
 
-1. o Google Identity Services entrega o `id_token` ao navegador;
-2. o backend verifica a assinatura contra o JWKS do Google, com `audience` preso ao client id e `issuer` restrito aos domínios oficiais;
-3. o backend emite **sessão própria** (HS256, 8 h) em cookie `HttpOnly; Secure; SameSite=Lax`.
+1. Google Identity Services hands the `id_token` to the browser;
+2. the backend verifies the signature against Google's JWKS, with `audience` pinned to the client id and `issuer` restricted to the official domains;
+3. the backend issues its **own session** (HS256, 8 h) in an `HttpOnly; Secure; SameSite=Lax` cookie.
 
-A sessão é separada do `id_token` de propósito: ele é prova de identidade de uso único, e reapresentá-lo a cada requisição amarraria a aplicação ao ciclo de vida dele.
+The session is kept separate from the `id_token` on purpose: the token is a single-use proof of identity, and presenting it on every request would tie the application to its lifecycle.
 
-Junto vieram dois defeitos antigos: o `transformResponse` do axios era passado como **corpo** do POST (o segundo argumento é o `data`, não a config) e por isso nunca rodava; e a leitura de `first_login` nunca batia com o `firstLogin` que o backend responde — motivo de a tela de preferências não aparecer no primeiro acesso.
+Two old defects were fixed along the way: axios's `transformResponse` was passed as the POST **body** (the second argument is `data`, not the config), so it never ran; and the `first_login` read never matched the `firstLogin` the backend returns, which is why the preferences screen didn't show up on first access.
 
-### Segredos
+### Secrets
 
-Ficam no **SSM Parameter Store** como `SecureString`, lidos pela Lambda em uma única chamada no cold start. Não há connection string nem chave em código versionado.
+They live in **SSM Parameter Store** as `SecureString`, read by the Lambda in a single call at cold start. No connection string or key is kept in versioned code.
 
-Variável de ambiente foi descartada por um motivo específico: `lambda:GetFunctionConfiguration` está dentro da policy gerenciada `ReadOnlyAccess`, então qualquer acesso somente-leitura à conta leria os segredos. Ler do Parameter Store exige `ssm:GetParameter` **e** `kms:Decrypt`, concedidos deliberadamente.
+Environment variables were ruled out for a specific reason: `lambda:GetFunctionConfiguration` is part of the managed `ReadOnlyAccess` policy, so any read-only access to the account could read the secrets. Reading from Parameter Store requires `ssm:GetParameter` **and** `kms:Decrypt`, granted deliberately.
 
-Os valores também não ficam no estado da infraestrutura, escritos em modo
-*write-only*.
+The values also stay out of the infrastructure state, since they are written in
+*write-only* mode.
 
-### Layout para desktop
+### Desktop layout
 
-A tela principal fora desenhada para celular, onde a coluna de 700 px preenche o visor. No desktop ela aparecia encostada à esquerda: dois blocos declaravam `maxWidth` sem `margin: auto`. A largura virou uma declaração única, usada pelo fundo, pelo conteúdo e pela barra de ações.
+The main screen had been designed for phones, where the 700 px column fills the viewport. On desktop it sat flush to the left: two blocks declared `maxWidth` without `margin: auto`. The width became a single declaration, used by the background, the content and the action bar.
 
 ---
 
-## 🚀 Rodando localmente
+## 🚀 Running locally
 
-**Pré-requisitos:** Node 18 (o `react-scripts` 4 não roda em versões recentes), Docker opcional.
+**Prerequisites:** Node 18 (`react-scripts` 4 doesn't run on recent versions), Docker optional.
 
 ```bash
 # backend
 cd backend
 npm install
-# crie um .env com as variáveis da tabela abaixo
+# create a .env with the variables from the table below
 npm run typeorm -- migration:run
-npm run db:seed         # não é idempotente: rode uma vez
-npm run dev             # http://localhost:5000 · docs em /doc
+npm run db:seed         # not idempotent: run it once
+npm run dev             # http://localhost:5000 · docs at /doc
 
 # frontend
 cd frontend
@@ -130,52 +130,52 @@ npm ci
 npm start               # http://localhost:3000
 ```
 
-### Variáveis do backend
+### Backend variables
 
-| Variável | Para quê |
+| Variable | Purpose |
 |---|---|
-| `DB_URL` | Connection string completa. Quando presente, as variáveis avulsas abaixo são ignoradas |
-| `DB_HOST` `DB_PORT` `DB_DATABASE` `DB_USERNAME` `DB_PASSWORD` | Postgres local. Deixe `DB_SSL` fora — container não fala TLS |
-| `GOOGLE_CLIENT_ID` | Client ID OAuth (tipo *Web application*). Público |
-| `SESSION_SECRET` | Chave que assina as sessões |
-| `PORT` | Padrão 5000 |
+| `DB_URL` | Full connection string. When set, the individual variables below are ignored |
+| `DB_HOST` `DB_PORT` `DB_DATABASE` `DB_USERNAME` `DB_PASSWORD` | Local Postgres. Leave `DB_SSL` out, since the container doesn't speak TLS |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID (*Web application* type). Public |
+| `SESSION_SECRET` | Key that signs the sessions |
+| `PORT` | Defaults to 5000 |
 
-O frontend precisa de `REACT_APP_API_URL` (use `/api/v1`, relativo) e `REACT_APP_GOOGLE_CLIENT_ID`.
+The frontend needs `REACT_APP_API_URL` (use `/api/v1`, relative) and `REACT_APP_GOOGLE_CLIENT_ID`.
 
-> Para o login funcionar, o domínio precisa estar em **Authorized JavaScript origins** no console do Google Cloud.
+> For login to work, the domain must be listed under **Authorized JavaScript origins** in the Google Cloud console.
 
-### Testes
+### Tests
 
 ```bash
-cd backend && npx jest        # 156 testes
+cd backend && npx jest        # 156 tests
 ```
 
-## 📦 Deploy
+## 📦 Deployment
 
-A infraestrutura é provisionada fora deste repositório.
+The infrastructure is provisioned outside this repository.
 
 ```bash
-# backend: empacota a função (~33 MB)
+# backend: package the function (~33 MB)
 cd backend && ./build-lambda.sh
 
-# frontend: compila e publica a SPA
+# frontend: build and publish the SPA
 cd frontend && npm run build
 aws s3 sync build s3://<bucket> --delete
 aws cloudfront create-invalidation --distribution-id <id> --paths '/*'
 ```
 
-Bucket, distribuição e endereço público são próprios de cada ambiente e não
-ficam versionados.
+The bucket, distribution and public address belong to each environment and are
+not versioned.
 
-Migrations continuam manuais, rodadas contra o banco — elas são do ciclo de vida dele, não do da aplicação.
+Migrations are still manual, run against the database: they belong to its lifecycle, not the application's.
 
 ---
 
-## 👥 Créditos
+## 👥 Credits
 
-> O grupo Cinehal agradece a equipe de desenvolvimento.
+> The Cinehal group thanks the development team.
 
-Um semestre, quatro equipes. Os nomes abaixo são os mesmos exibidos na tela de Créditos do aplicativo.
+One semester, four teams. The names below are the same ones shown on the app's Credits screen.
 
 **AGES 1**
 - Alexya Silva Rocha de Oliveira
@@ -199,10 +199,10 @@ Um semestre, quatro equipes. Os nomes abaixo são os mesmos exibidos na tela de 
 - Alexandre Scheer Bing
 - Matheus Lima Ferreira
 
-Projeto acadêmico da **AGES — Escola Politécnica da PUCRS**.
+Academic project from **AGES, Escola Politécnica da PUCRS**.
 
 ---
 
-## 📄 Documentação por módulo
+## 📄 Per-module documentation
 
-`backend/README.md` e `frontend/README.md` descrevem o projeto como ele foi entregue pelas equipes originais, incluindo referências ao Heroku e ao Firebase que não valem mais. Ficam como registro.
+`backend/README.md` and `frontend/README.md` describe the project as it was delivered by the original teams, including references to Heroku and Firebase that no longer apply. They are kept as a record.
